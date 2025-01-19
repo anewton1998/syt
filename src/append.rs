@@ -70,11 +70,12 @@ mod test {
 
     use tempfile::NamedTempFile;
 
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
 
     use crate::append::append_or_new;
+    use crate::lazy::LazyDocs;
 
-    #[derive(Serialize)]
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
     struct TestData {
         a: i32,
         b: String,
@@ -82,7 +83,7 @@ mod test {
 
     #[test]
     fn append_to_empty_file() -> crate::Result<()> {
-        // Given
+        // GIVEN
         let tmp_file = NamedTempFile::new()?;
         let path = tmp_file.path();
         let data = TestData {
@@ -90,10 +91,10 @@ mod test {
             b: "hello".to_string(),
         };
 
-        // When
+        // WHEN
         append_or_new(path, &data)?;
 
-        // Then
+        // THEN
         let mut file = File::open(path)?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
@@ -103,7 +104,7 @@ mod test {
 
     #[test]
     fn append_to_existing_file() -> crate::Result<()> {
-        // Given
+        // GIVEN
         let tmp_file = NamedTempFile::new()?;
         let path = tmp_file.path();
         let initial_data = TestData {
@@ -116,10 +117,10 @@ mod test {
             b: "hello".to_string(),
         };
 
-        // When
+        // WHEN
         append_or_new(path, &new_data)?;
 
-        // Then
+        // THEN
         let mut file = File::open(path)?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
@@ -129,7 +130,7 @@ mod test {
 
     #[test]
     fn create_file_if_not_exists() -> crate::Result<()> {
-        // Given
+        // GIVEN
         let tmp_dir = tempfile::tempdir()?;
         let path = tmp_dir.path().join("new_file.yml");
         let data = TestData {
@@ -137,10 +138,10 @@ mod test {
             b: "hello".to_string(),
         };
 
-        // When
+        // WHEN
         append_or_new(&path, &data)?;
 
-        // Then
+        // THEN
         let mut file = File::open(path)?;
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
@@ -152,7 +153,7 @@ mod test {
     // Test for handling potential errors
     #[test]
     fn handle_write_error() {
-        // Given - A read-only directory (should cause write error)
+        // GIVEN - A read-only directory (should cause write error)
         let tmp_dir = tempfile::tempdir().unwrap();
         let read_only_dir = tmp_dir.path().join("read_only");
         fs::create_dir(&read_only_dir).unwrap();
@@ -165,10 +166,67 @@ mod test {
             b: "hello".to_string(),
         };
 
-        // When
+        // WHEN
         let result = append_or_new(&path, &data);
 
-        // Then
+        // THEN
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn append_to_empty_file_and_lazy_load() -> crate::Result<()> {
+        // GIVEN tmp file
+        let tmp_file = NamedTempFile::new()?;
+        let path = tmp_file.path();
+        let data = TestData {
+            a: 1,
+            b: "hello".to_string(),
+        };
+
+        // WHEN append
+        append_or_new(path, &data)?;
+
+        // THEN read doc 1 and it equals expected
+        let mut docs = LazyDocs::<TestData>::new(path).unwrap();
+        let actual = docs.next();
+        assert_eq!(
+            actual,
+            Some(TestData {
+                a: 1,
+                b: "hello".to_string()
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn append_to_new_file_twice_and_lazy_load_docs() -> crate::Result<()> {
+        // GIVEN tmp file
+        let tmp_file = NamedTempFile::new()?;
+        let path = tmp_file.path();
+
+        // WHEN append data
+        let initial_data = TestData {
+            a: 2,
+            b: "world".to_string(),
+        };
+        append_or_new(path, &initial_data)?;
+
+        // WHEN append more data
+        let new_data = TestData {
+            a: 1,
+            b: "hello".to_string(),
+        };
+        append_or_new(path, &new_data)?;
+
+        // THEN first doc is initial data
+        let mut docs = LazyDocs::<TestData>::new(path).unwrap();
+        let actual = docs.next();
+        assert_eq!(actual, Some(initial_data));
+
+        // THEN second doc is new data
+        let actual = docs.next();
+        assert_eq!(actual, Some(new_data));
+        Ok(())
     }
 }
