@@ -1,8 +1,11 @@
+#![allow(rustdoc::bare_urls)]
+#![doc = include_str!("../README.md")]
 use std::{error::Error as StdError, fmt};
 
 pub mod append;
 pub mod lazy;
 
+/// Error enum for errors thrown by functions in this crate.
 #[derive(Debug)]
 pub enum Error {
     IoError(std::io::Error),
@@ -39,4 +42,5 @@ impl From<serde_yml::Error> for Error {
     }
 }
 
+/// This crate's result type for [Error].
 pub type Result<T> = std::result::Result<T, Error>;

@@ -1,3 +1,4 @@
+//! Provides a function to append a YAML doc to a file.
 use std::io::Write;
 use std::{fs::File, path::Path};
 
