@@ -1,9 +1,14 @@
 # syt
 
-This crate provides a function to append YAML documents to a YAML file, and to lazy load YAML
-documents from files.
+This crate provides "things" for [serde_yml] or "serde_yml" things. It is mostly a bunch of hacks
+consisting of the following:
 
-## Example
+* Functions to append YAML documents to a YAML file.
+* An iterator to lazy load multiple YAML docs from the same file.
+* A writer that inserts YAML comments based on a callback.
+
+
+## Example of appending and lazy load YAML docs
 
 
 ```rust
@@ -29,6 +34,7 @@ enum MyDoc {
 }
 
 fn main() -> Result<(), Error> {
+
     let mut file = NamedTempFile::new()?;
     let path = file.path();
 
@@ -58,6 +64,45 @@ fn main() -> Result<(), Error> {
 }
 ```
 
+# Example of adding comments to YAML docs.
+
+```rust
+use serde::Serialize;
+use syt::comments::{to_string, KeyData};
+#[derive(Serialize)]
+struct Config {
+    name: String,
+    age: u32,
+}
+
+let config = Config {
+    name: "John Doe".to_string(),
+    age: 30,
+};
+
+let cb = |key: KeyData| {
+    if key.str == "name" {
+        Some("The name of the person.".to_string())
+    } else if key.str == "age" {
+        Some("The age of the person.\nIn years.".to_string())
+    } else {
+        None
+    }
+};
+
+let result = to_string(&config, cb).unwrap();
+
+let expected = "\
+    ## The name of the person.\n\
+    name: John Doe\n\
+    ## The age of the person.\n\
+    ## In years.\n\
+    age: 30\n\
+    "
+.trim_start()
+.to_string();
+assert_eq!(result, expected);
+```
 
 ## License
 
